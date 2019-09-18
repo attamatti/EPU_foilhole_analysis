@@ -64,7 +64,7 @@ def parse_xml_GS(xml_file):
         if i.tag.split('}')[-1] == 'Y':
             stageY = i.text
         if i.tag.split('}')[-1] == 'Selected': 
-	    selected = i.text
+            selected = i.text
         if i.tag.split('}')[-1] =='State':
             completed = i.text
         if i.tag.split('}')[-1] =='FileName':
@@ -119,17 +119,18 @@ def make_correlation_plot(vals,names):
     if len(vals)==3:
         top3rd1,middle3rd1,bottom3rd1,top3rd2,middle3rd2,bottom3rd2,top3rd3,middle3rd3,bottom3rd3 = [],[],[],[],[],[],[],[],[]
         n=0
-        vrange = 0.33*(max(vals[2])-min(vals[2]))
+        vrange = np.std(vals[2])
+        mean = np.mean(vals[2])
         for i in vals[2]:
-            if i < min(vals[2])+vrange:
+            if i < mean-vrange:
                 bottom3rd1.append(vals[0][n])
                 bottom3rd2.append(vals[1][n])
                 bottom3rd3.append(vals[2][n])
-            elif i>= min(vals[2])+vrange and i<=min(vals[2])+(2*vrange):
+            elif i>= mean-vrange and i<= mean + vrange:
                 middle3rd1.append(vals[0][n])
                 middle3rd2.append(vals[1][n])
                 middle3rd3.append(vals[2][n])
-            elif i > max(vals[2])-vrange:
+            elif i > mean + vrange:
                 top3rd1.append(vals[0][n])
                 top3rd2.append(vals[1][n])
                 top3rd3.append(vals[2][n])
@@ -139,25 +140,27 @@ def make_correlation_plot(vals,names):
         main = plt.subplot2grid((3,5),(0,0),rowspan=3, colspan=3)
         main.set_yticklabels([])
         main.set_xticklabels([])
+        main.set_xlim((0,imdim[0]))
+        main.set_ylim((0,imdim[0]))
         h = main.scatter(vals[0],vals[1],c=vals[2],s=5,edgecolor='face')
         t3rd = plt.subplot2grid((3,5),(0,3))
         t3rd.scatter(top3rd1,top3rd2,c=top3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         t3rd.set_yticklabels([])
         t3rd.set_xticklabels([])
-        t3rd.set_ylim((0,4096))
-        t3rd.set_xlim((0,4096))
+        t3rd.set_ylim((0,imdim[0]))
+        t3rd.set_xlim((0,imdim[0]))
         m3rd = plt.subplot2grid((3,5),(1,3))
         m3rd.scatter(middle3rd1,middle3rd2,c=middle3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         m3rd.set_yticklabels([])
         m3rd.set_xticklabels([])
-        m3rd.set_ylim((0,4096))
-        m3rd.set_xlim((0,4096))
+        m3rd.set_ylim((0,imdim[0]))
+        m3rd.set_xlim((0,imdim[0]))
         b3rd = plt.subplot2grid((3,5),(2,3))
         b3rd.scatter(bottom3rd1,bottom3rd2,c=bottom3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         b3rd.set_yticklabels([])
         b3rd.set_xticklabels([])
-        b3rd.set_ylim((0,4096))
-        b3rd.set_xlim((0,4096))
+        b3rd.set_ylim((0,imdim[0]))
+        b3rd.set_xlim((0,imdim[0]))
         colbar = plt.subplot2grid((3,5),(0,4),rowspan=3)
         fig.colorbar(h,cax=colbar)
         plt.xlabel(names[0])
@@ -229,6 +232,7 @@ for i in GS_dic:
     if GS_dic[i][4] == 'true':
         selected.append(i)
 print('Found {0} selected gridsquares to process'.format(len(selected)))
+GS_imdic = {}			#{GS imagename -just time and data: GS target_number}
 for i in selected:
     GS_name = i.split('/')[-1].split('.')[0]
     imagepath = '{0}/{1}/'.format(images,GS_name)
@@ -244,7 +248,7 @@ for i in selected:
     big_GS_dic[GS_image] = {}
     print('{0} gridsquare images found :: using {1}'.format(len(GS_images),GS_image.split('/')[-1]))
     sq_cent_x,sq_cent_y,sq_z,sq_apix = make_bg(GS_image)
-
+    GS_imdic[GS_image.split('/')[-1].split('.')[0]] = GS_name
 # get targets for the square xy positions from metadata
     tmd_dir = '{0}/{1}'.format(metadata,GS_name)
     target_metadata = get_files(tmd_dir,'*.dm')
@@ -280,6 +284,7 @@ for i in selected:
             plt.text(float(targets_dic[t][4]),float(targets_dic[t][5])-30,foilhole_part_count[t][0],size=3)
     plt.savefig('{0}_targets.png'.format(GS_name),dpi=800)
     plt.close()
+print(GS_imdic)
 
 print('\nGridsquare ID\t\t#foilholes')
 for  i in big_GS_dic:
@@ -295,6 +300,7 @@ for GS in big_GS_dic:
     print(GS)
     gridsquare_image = mrcfile.open(GS)
     micdata = gridsquare_image.data
+    imdim = micdata.shape
     DTdic = {}          #{datetime:[MVPD,LLC]}
     for FH in big_GS_dic[GS]:
         sq_mean,sq_stdev = extract_square(micdata,75,big_GS_dic[GS][FH][0],big_GS_dic[GS][FH][1])
@@ -324,14 +330,14 @@ print('-- making thickness plots --')
 for i in thicknessdic:
     try:
         GSname = i.split('/')[-1].split('.')[0]
-        print(GSname)
+        print('{0} / {1}'.format(GSname,GS_imdic[GSname]))
         make_bg(i)
         h= plt.scatter(thicknessdic[i][0],thicknessdic[i][1],c=thicknessdic[i][2],s=30,cmap='cool',vmin=min(means),vmax=max(means))
         plt.colorbar(h)
-        plt.savefig('{0}_thick.png'.format(GSname))
+        plt.savefig('{0}_thick.png'.format(GS_imdic[GSname]))
         plt.close()
     except:
-        pass
+        print('skipped {0} - no foilholes'.format(GSname))
 print('-- plotting --')
 make_correlation_plot([xs,ys,MVPDs],['x','y','MaxValProbDist'])
 make_correlation_plot([xs,ys,LLCs],['x','y','LogLikelyhoodContrib'])
