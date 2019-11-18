@@ -12,10 +12,10 @@ warnings.filterwarnings('ignore')
 
 
 
-# identify all foil holes that had images taken from them
-# score each foil hole buy how many particles were picked from it.
-# extract each as sub imagesparticles
-#
+# to do Anna's edits:
+#     normalize particle counts scale bars and colors across all images
+#     variable for hole size to account for different size holes
+#     eliminate outliers for thickness colro maps
 
 def get_dirs(datapath):
     try:
@@ -229,6 +229,7 @@ for i in GS_dic:
     if GS_dic[i][4] == 'true':
         selected.append(i)
 print('Found {0} selected gridsquares to process'.format(len(selected)))
+GSname_dic = {}			# {gs_imagename:actual gs name}
 for i in selected:
     GS_name = i.split('/')[-1].split('.')[0]
     imagepath = '{0}/{1}/'.format(images,GS_name)
@@ -243,6 +244,7 @@ for i in selected:
     GS_image = GS_images[-1]
     big_GS_dic[GS_image] = {}
     print('{0} gridsquare images found :: using {1}'.format(len(GS_images),GS_image.split('/')[-1]))
+    GSname_dic[GS_image.split('/')[-1].split('.')[0]] = GS_name
     sq_cent_x,sq_cent_y,sq_z,sq_apix = make_bg(GS_image)
 
 # get targets for the square xy positions from metadata
@@ -257,11 +259,20 @@ for i in selected:
         targets_dic[target.split('/')[-1].split('_')[1].replace('.dm','')] = [order,stageX,stageY,stageZ,drawX,drawY]
     
     # mark each foil hole with the number of particles contributed and any misses
-    hitsx,hitsy,LLCvals,MVPDvals = [],[],[],[]
+    colorsrange  = []    
+    for t in targets_dic:
+        if t in foilhole_part_count:
+            colorsrange.append(float(foilhole_part_count[t][0]))
+    try:
+        colormin,colormax = min(colorsrange),max(colorsrange)
+    except:
+        colormin,colormax=0,1
+    hitsx,hitsy,LLCvals,MVPDvals,colors = [],[],[],[],[]
     for t in targets_dic:
         if t in foilhole_part_count:
             hitsx.append(float(targets_dic[t][4]))
             hitsy.append(float(targets_dic[t][5]))
+            colors.append(foilhole_part_count[t][0])
             LLCvals.append(foilhole_part_count[t][1])
             MVPDvals.append(foilhole_part_count[t][2])
             big_GS_dic[GS_image][t]=[float(targets_dic[t][4]),float(targets_dic[t][5]),foilhole_part_count[t][0],foilhole_part_count[t][1],foilhole_part_count[t][2],foilhole_part_count[t][3],foilhole_part_count[t][4]]
@@ -272,12 +283,12 @@ for i in selected:
             print(hole,'MISS')
             missesx.append(targets_dic[hole][4],targets_dic[hole][5])
             big_GS_dic[GS_image][t]=[float(targets_dic[t][4]),float(targets_dic[t][5]),0,0,0,foilhole_part_count[t][3]]
-    plt.scatter(missesx,missesy,c='blue',s=30,alpha=0.8,edgecolors='face')
-    plt.scatter(hitsx,hitsy,s=30,alpha=0.8,edgecolors='face',c='orange')
+    h = plt.scatter(hitsx,hitsy,s=30,alpha=0.8,edgecolors='face',c=colors,vmin=colormin, vmax=colormax,cmap='coolwarm')
+    plt.colorbar(h)
     for t in targets_dic:
-        plt.text(float(targets_dic[t][4]),float(targets_dic[t][5]),t,size=3)
+        #plt.text(float(targets_dic[t][4]),float(targets_dic[t][5]),t,size=3)
         if t in foilhole_part_count:
-            plt.text(float(targets_dic[t][4]),float(targets_dic[t][5])-30,foilhole_part_count[t][0],size=3)
+            plt.text(float(targets_dic[t][4]),float(targets_dic[t][5]),foilhole_part_count[t][0],size=3)
     plt.savefig('{0}_targets.png'.format(GS_name),dpi=800)
     plt.close()
 
@@ -297,7 +308,7 @@ for GS in big_GS_dic:
     micdata = gridsquare_image.data
     DTdic = {}          #{datetime:[MVPD,LLC]}
     for FH in big_GS_dic[GS]:
-        sq_mean,sq_stdev = extract_square(micdata,75,big_GS_dic[GS][FH][0],big_GS_dic[GS][FH][1])
+        sq_mean,sq_stdev = extract_square(micdata,25,big_GS_dic[GS][FH][0],big_GS_dic[GS][FH][1])
         thicknessdic[GS][2].append(sq_mean)
         flat_dic[FH] = big_GS_dic[GS][FH]
         xs.append(float(big_GS_dic[GS][FH][0]))
@@ -328,7 +339,7 @@ for i in thicknessdic:
         make_bg(i)
         h= plt.scatter(thicknessdic[i][0],thicknessdic[i][1],c=thicknessdic[i][2],s=30,cmap='cool',vmin=min(means),vmax=max(means))
         plt.colorbar(h)
-        plt.savefig('{0}_thick.png'.format(GSname))
+        plt.savefig('{0}_thick.png'.format(GSname_dic[GSname]),dpi=800)
         plt.close()
     except:
         pass
