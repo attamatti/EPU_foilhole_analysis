@@ -11,11 +11,13 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-
-# to do Anna's edits:
-#     normalize particle counts scale bars and colors across all images
-#     variable for hole size to account for different size holes
-#     eliminate outliers for thickness colro maps
+vers= '1.0'
+print'''
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%        EPU foilhole analysis        %%%
+%%%               vers. {0}             %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+'''.format(vers) 
 
 def get_dirs(datapath):
     try:
@@ -46,7 +48,6 @@ def make_bg(square_level_image):
     return(sq_cent_x,sq_cent_y,sq_z,sq_apix)
 
 def extract_square(mrc_array,sqsize,centerx,centery):
-    print('****',mrc_array.shape)
     centerx,centery = int(centerx-1),int(centery-1)
     d = int(sqsize/2)
     sq = mrc_array[centery-d:centery+d,centerx-d:centerx+d]
@@ -206,7 +207,7 @@ for line in data:
         foilhole_part_count[foilhole][3].append(float(line[labels['_rlnDefocusV']]))
 
     except:
-        datetime = ''.join(line[labels['_rlnMicrographName']].split('/')[-1].split('.')[0].split('_')[-3:-1])
+        datetime = ''.join(line[labels['_rlnMicrographName']].split('/')[-1].split('.')[0].split('_')[-2:]).split('-')[0]
         foilhole_part_count[foilhole]= [1,[float(line[labels['_rlnLogLikeliContribution']])],[float(line[labels['_rlnMaxValueProbDistribution']])],[float(line[labels['_rlnDefocusU']]),float(line[labels['_rlnDefocusV']])],datetime]
 for i in foilhole_part_count:
     foilhole_part_count[i][1] = np.mean(foilhole_part_count[i][1])
@@ -240,7 +241,7 @@ for i in selected:
     GS_name = i.split('/')[-1].split('.')[0]
     imagepath = '{0}/{1}/'.format(images,GS_name)
     FHpath = imagepath+'Foilholes'
-    print('----------')
+    print('\n----------')
     print(GS_name)
     print('gridsquare metadata: {0}'.format(i))
     print('gridsquare image path  : {0}'.format(imagepath))
@@ -293,19 +294,19 @@ for i in selected:
     plt.savefig('{0}_targets.png'.format(GS_name),dpi=800)
     plt.close()
 
-print('\nGridsquare ID\t\t#foilholes')
+print('\nGridsquare ID\t\tGridsquare image\t\t#foilholes')
 for  i in big_GS_dic:
-    print ('{0}\t{1}'.format(i,len(big_GS_dic[i])))
-print('{0} foilholes contributed particles'.format(len(big_GS_dic)))
+    print ('{0}\t{1}\t{2}'.format(GSname_dic[i.split('/')[-1].split('.')[0]],i.split('/')[-1],len(big_GS_dic[i])))
+print('{0} gridsquares contributed particles'.format(len(big_GS_dic)))
 
 # makeing flat lists for analysis
-print('-- gathering stats for correlation analysis --')
+print('\n-- gathering stats for correlation analysis --')
 flat_dic = {}
 xs,ys,nparts,LLCs,MVPDs,defoci,means,stds,DTs = [],[],[],[],[],[],[],[],[]
 thicknessdic = {}       #{GS:[[xs],[ys],[sq_means]]}
 for GS in big_GS_dic:
     thicknessdic[GS] = [[],[],[]]
-    print(GS)
+    print(GSname_dic[GS.split('/')[-1].split('.')[0]])
     gridsquare_image = mrcfile.open(GS)
     micdata = gridsquare_image.data
     DTdic = {}          #{datetime:[MVPD,LLC]}
@@ -346,12 +347,12 @@ for i in means:
     else:
         outliercount +=1
 
-print('-- making thickness plots --')
+print('\n-- making thickness plots --')
 print('{0} foilholes excluded as outliers'.format(outliercount))
 for i in thicknessdic:
     try:
         GSname = i.split('/')[-1].split('.')[0]
-        print(GSname)
+        print(GSname_dic[GSname])
         make_bg(i)
         h= plt.scatter(thicknessdic[i][0],thicknessdic[i][1],edgecolors='face',c=thicknessdic[i][2],s=30,cmap='cool',vmin=min(thickrange),vmax=max(thickrange))
         plt.colorbar(h)
@@ -359,7 +360,7 @@ for i in thicknessdic:
         plt.close()
     except:
         pass
-print('-- plotting --')
+print('\n-- plotting --')
 make_correlation_plot([xs,ys,MVPDs],['x','y','MaxValProbDist'],datashape)
 make_correlation_plot([xs,ys,LLCs],['x','y','LogLikelyhoodContrib'],datashape)
 make_correlation_plot([xs,ys,nparts],['x','y','numparts'],datashape)
