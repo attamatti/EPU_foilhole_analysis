@@ -46,6 +46,7 @@ def make_bg(square_level_image):
     return(sq_cent_x,sq_cent_y,sq_z,sq_apix)
 
 def extract_square(mrc_array,sqsize,centerx,centery):
+    print('****',mrc_array.shape)
     centerx,centery = int(centerx-1),int(centery-1)
     d = int(sqsize/2)
     sq = mrc_array[centery-d:centery+d,centerx-d:centerx+d]
@@ -114,7 +115,7 @@ def read_starfile_new(f):
     return(labelsdic,header,data)
 
 
-def make_correlation_plot(vals,names):
+def make_correlation_plot(vals,names,datashape):
     print(names)
     if len(vals)==3:
         top3rd1,middle3rd1,bottom3rd1,top3rd2,middle3rd2,bottom3rd2,top3rd3,middle3rd3,bottom3rd3 = [],[],[],[],[],[],[],[],[]
@@ -139,25 +140,27 @@ def make_correlation_plot(vals,names):
         main = plt.subplot2grid((3,5),(0,0),rowspan=3, colspan=3)
         main.set_yticklabels([])
         main.set_xticklabels([])
+        main.set_ylim((0,datashape[0]))
+        main.set_xlim((0,datashape[1]))
         h = main.scatter(vals[0],vals[1],c=vals[2],s=5,edgecolor='face')
         t3rd = plt.subplot2grid((3,5),(0,3))
         t3rd.scatter(top3rd1,top3rd2,c=top3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         t3rd.set_yticklabels([])
         t3rd.set_xticklabels([])
-        t3rd.set_ylim((0,4096))
-        t3rd.set_xlim((0,4096))
+        t3rd.set_ylim((0,datashape[0]))
+        t3rd.set_xlim((0,datashape[1]))
         m3rd = plt.subplot2grid((3,5),(1,3))
         m3rd.scatter(middle3rd1,middle3rd2,c=middle3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         m3rd.set_yticklabels([])
         m3rd.set_xticklabels([])
-        m3rd.set_ylim((0,4096))
-        m3rd.set_xlim((0,4096))
+        m3rd.set_ylim((0,datashape[0]))
+        m3rd.set_xlim((0,datashape[1]))
         b3rd = plt.subplot2grid((3,5),(2,3))
         b3rd.scatter(bottom3rd1,bottom3rd2,c=bottom3rd3,vmax=max(vals[2]),vmin=min(vals[2]),s=2,edgecolor='face')
         b3rd.set_yticklabels([])
         b3rd.set_xticklabels([])
-        b3rd.set_ylim((0,4096))
-        b3rd.set_xlim((0,4096))
+        b3rd.set_ylim((0,datashape[0]))
+        b3rd.set_xlim((0,datashape[1]))
         colbar = plt.subplot2grid((3,5),(0,4),rowspan=3)
         fig.colorbar(h,cax=colbar)
         plt.xlabel(names[0])
@@ -210,6 +213,9 @@ for i in foilhole_part_count:
     foilhole_part_count[i][2] = np.mean(foilhole_part_count[i][2])
     foilhole_part_count[i][3] = np.mean(foilhole_part_count[i][3])
 
+# get the values for min max of particles per hole
+colorrange = [foilhole_part_count[x][0] for x in foilhole_part_count]
+colormin,colormax = min(colorrange),max(colorrange)
 print('{0} foilholes  {1} particles'.format(len(foilhole_part_count),len(data)))
 
 # get grid square metadata
@@ -259,14 +265,6 @@ for i in selected:
         targets_dic[target.split('/')[-1].split('_')[1].replace('.dm','')] = [order,stageX,stageY,stageZ,drawX,drawY]
     
     # mark each foil hole with the number of particles contributed and any misses
-    colorsrange  = []    
-    for t in targets_dic:
-        if t in foilhole_part_count:
-            colorsrange.append(float(foilhole_part_count[t][0]))
-    try:
-        colormin,colormax = min(colorsrange),max(colorsrange)
-    except:
-        colormin,colormax=0,1
     hitsx,hitsy,LLCvals,MVPDvals,colors = [],[],[],[],[]
     for t in targets_dic:
         if t in foilhole_part_count:
@@ -284,7 +282,10 @@ for i in selected:
             missesx.append(targets_dic[hole][4],targets_dic[hole][5])
             big_GS_dic[GS_image][t]=[float(targets_dic[t][4]),float(targets_dic[t][5]),0,0,0,foilhole_part_count[t][3]]
     h = plt.scatter(hitsx,hitsy,s=30,alpha=0.8,edgecolors='face',c=colors,vmin=colormin, vmax=colormax,cmap='coolwarm')
-    plt.colorbar(h)
+    try:
+        plt.colorbar(h)
+    except:
+        pass
     for t in targets_dic:
         #plt.text(float(targets_dic[t][4]),float(targets_dic[t][5]),t,size=3)
         if t in foilhole_part_count:
@@ -296,6 +297,7 @@ print('\nGridsquare ID\t\t#foilholes')
 for  i in big_GS_dic:
     print ('{0}\t{1}'.format(i,len(big_GS_dic[i])))
 print('{0} foilholes contributed particles'.format(len(big_GS_dic)))
+
 # makeing flat lists for analysis
 print('-- gathering stats for correlation analysis --')
 flat_dic = {}
@@ -309,6 +311,7 @@ for GS in big_GS_dic:
     DTdic = {}          #{datetime:[MVPD,LLC]}
     for FH in big_GS_dic[GS]:
         sq_mean,sq_stdev = extract_square(micdata,25,big_GS_dic[GS][FH][0],big_GS_dic[GS][FH][1])
+	datashape = micdata.shape
         thicknessdic[GS][2].append(sq_mean)
         flat_dic[FH] = big_GS_dic[GS][FH]
         xs.append(float(big_GS_dic[GS][FH][0]))
@@ -324,6 +327,7 @@ for GS in big_GS_dic:
         stds.append(float(sq_stdev))
     gridsquare_image.close()
 
+# DateTime sorting for aquisition order - broken?
 DTdickeys = list(DTdic)
 DTdickeys.sort()
 DTsortedLLCs,DTsortedMVPDs,DTsortedsq_mean = [],[],[]
@@ -331,32 +335,44 @@ for i in DTdickeys:
     DTsortedLLCs.append(DTdic[i][0])
     DTsortedMVPDs.append(DTdic[i][1])
     DTsortedsq_mean.append(DTdic[i][2])
+
+### makeing the thickness plots
+# eliminating the outliers from thickness measurements
+thickrange,thickrangemean,thickrangestd =[],np.mean(means),np.std(means) 
+outliercount = 0
+for i in means:
+    if thickrangemean - 3*thickrangestd < i:
+        thickrange.append(i)
+    else:
+        outliercount +=1
+
 print('-- making thickness plots --')
+print('{0} foilholes excluded as outliers'.format(outliercount))
 for i in thicknessdic:
     try:
         GSname = i.split('/')[-1].split('.')[0]
         print(GSname)
         make_bg(i)
-        h= plt.scatter(thicknessdic[i][0],thicknessdic[i][1],c=thicknessdic[i][2],s=30,cmap='cool',vmin=min(means),vmax=max(means))
+        h= plt.scatter(thicknessdic[i][0],thicknessdic[i][1],edgecolors='face',c=thicknessdic[i][2],s=30,cmap='cool',vmin=min(thickrange),vmax=max(thickrange))
         plt.colorbar(h)
         plt.savefig('{0}_thick.png'.format(GSname_dic[GSname]),dpi=800)
         plt.close()
     except:
         pass
 print('-- plotting --')
-make_correlation_plot([xs,ys,MVPDs],['x','y','MaxValProbDist'])
-make_correlation_plot([xs,ys,LLCs],['x','y','LogLikelyhoodContrib'])
-make_correlation_plot([xs,ys,nparts],['x','y','numparts'])
-make_correlation_plot([defoci,nparts],['defocus','numparts'])
-make_correlation_plot([defoci,MVPDs],['defocus','MaxValProbDist'])
-make_correlation_plot([defoci,LLCs],['defocus','LogLikelyhoodContrib'])
-make_correlation_plot([MVPDs,LLCs],['MaxValueProbDist','LogLikelyhoodContrib'])
+make_correlation_plot([xs,ys,MVPDs],['x','y','MaxValProbDist'],datashape)
+make_correlation_plot([xs,ys,LLCs],['x','y','LogLikelyhoodContrib'],datashape)
+make_correlation_plot([xs,ys,nparts],['x','y','numparts'],datashape)
+make_correlation_plot([defoci,nparts],['defocus','numparts'],datashape)
+make_correlation_plot([defoci,MVPDs],['defocus','MaxValProbDist'],datashape)
+make_correlation_plot([defoci,LLCs],['defocus','LogLikelyhoodContrib'],datashape)
+make_correlation_plot([MVPDs,LLCs],['MaxValueProbDist','LogLikelyhoodContrib'],datashape)
 
-make_correlation_plot([means,LLCs],['Thickness','LogLikelyhoodContrib'])
-make_correlation_plot([means,MVPDs],['Thickness','MaxValueProbDist'])
-make_correlation_plot([means,nparts],['Thickness','number of particles'])
-make_correlation_plot([xs,ys,means],['x','y','mean pixel value'])
+make_correlation_plot([means,LLCs],['Thickness','LogLikelyhoodContrib'],datashape)
+make_correlation_plot([means,MVPDs],['Thickness','MaxValueProbDist'],datashape)
+make_correlation_plot([means,nparts],['Thickness','number of particles'],datashape)
+make_correlation_plot([xs,ys,means],['x','y','mean pixel value'],datashape)
 
-make_correlation_plot([range(len(DTsortedLLCs)),DTsortedLLCs],['Aquisition order','LogLiklyhoodContrib'])
-make_correlation_plot([range(len(DTsortedMVPDs)),DTsortedMVPDs],['Aquisition order','MaxValProbDist'])
-make_correlation_plot([range(len(DTsortedsq_mean)),DTsortedsq_mean],['Aquisition order','Thickness'])
+make_correlation_plot([range(len(DTsortedLLCs)),DTsortedLLCs],['Aquisition order','LogLiklyhoodContrib'],datashape)
+make_correlation_plot([range(len(DTsortedMVPDs)),DTsortedMVPDs],['Aquisition order','MaxValProbDist'],datashape)
+make_correlation_plot([range(len(DTsortedsq_mean)),DTsortedsq_mean],['Aquisition order','Thickness'],datashape)
